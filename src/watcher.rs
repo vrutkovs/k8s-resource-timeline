@@ -15,9 +15,104 @@ use kube::{
 use imara_diff::intern::InternedInput;
 use imara_diff::{diff, Algorithm, UnifiedDiffBuilder};
 
+trait WatchDiff<T> {
+    fn resource_name(&self) -> String;
+    fn yaml(&self) -> String;
+    fn diff(&self, previous: &T) -> String;
+}
+
+impl WatchDiff<Pod> for Pod {
+    fn resource_name(&self) -> String {
+        format!(
+            "namespace {} pod {}",
+            self.namespace().unwrap_or("".into()),
+            self.name_any()
+        )
+    }
+    fn yaml(&self) -> String {
+        serde_yaml::to_string(&self).unwrap()
+    }
+    fn diff(&self, previous: &Pod) -> String {
+        let src: String = previous.yaml();
+        let dst: String = self.yaml();
+        let input = InternedInput::new(src.as_str(), dst.as_str());
+        diff(
+            Algorithm::Histogram,
+            &input,
+            UnifiedDiffBuilder::new(&input),
+        )
+    }
+}
+
+impl WatchDiff<ConfigMap> for ConfigMap {
+    fn resource_name(&self) -> String {
+        format!(
+            "namespace {} configmap {}",
+            self.namespace().unwrap_or("".into()),
+            self.name_any()
+        )
+    }
+    fn yaml(&self) -> String {
+        serde_yaml::to_string(&self).unwrap()
+    }
+    fn diff(&self, previous: &ConfigMap) -> String {
+        let src: String = previous.yaml();
+        let dst: String = self.yaml();
+        let input = InternedInput::new(src.as_str(), dst.as_str());
+        diff(
+            Algorithm::Histogram,
+            &input,
+            UnifiedDiffBuilder::new(&input),
+        )
+    }
+}
+
+impl WatchDiff<Secret> for Secret {
+    fn resource_name(&self) -> String {
+        format!(
+            "namespace {} secret {}",
+            self.namespace().unwrap_or("".into()),
+            self.name_any()
+        )
+    }
+    fn yaml(&self) -> String {
+        serde_yaml::to_string(&self).unwrap()
+    }
+    fn diff(&self, previous: &Secret) -> String {
+        let src: String = previous.yaml();
+        let dst: String = self.yaml();
+        let input = InternedInput::new(src.as_str(), dst.as_str());
+        diff(
+            Algorithm::Histogram,
+            &input,
+            UnifiedDiffBuilder::new(&input),
+        )
+    }
+}
+
+impl WatchDiff<Node> for Node {
+    fn resource_name(&self) -> String {
+        format!("node {}", self.name_any())
+    }
+    fn yaml(&self) -> String {
+        serde_yaml::to_string(&self).unwrap()
+    }
+    fn diff(&self, previous: &Node) -> String {
+        let src: String = previous.yaml();
+        let dst: String = self.yaml();
+        let input = InternedInput::new(src.as_str(), dst.as_str());
+        diff(
+            Algorithm::Histogram,
+            &input,
+            UnifiedDiffBuilder::new(&input),
+        )
+    }
+}
+
 pub async fn watch_pods(client: Client) -> impl Stream<Item = Result<String, anyhow::Error>> {
-    let mut cache: HashMap<String, String> = HashMap::new();
     stream! {
+        let mut cache: HashMap<String, Pod> = HashMap::new();
+
         let client_api: Api<Pod> = Api::all(client);
         let (_, writer) = reflector::store::<Pod>();
         let stream = watcher(client_api, watcher::Config::default().any_semantic())
@@ -27,28 +122,21 @@ pub async fn watch_pods(client: Client) -> impl Stream<Item = Result<String, any
             .predicate_filter(predicates::resource_version);
         pin_mut!(stream);
 
-        while let Some(pod) = stream.try_next().await? {
-            let resource_name = format!(
-                "namespace {} pod {}",
-                pod.namespace().unwrap_or("".into()),
-                pod.name_any()
-            );
-            let previous_yaml: String = cache.get(&resource_name).unwrap_or(&"".into()).into();
-            let yaml = serde_yaml::to_string(&pod).unwrap();
-            let input = InternedInput::new(previous_yaml.as_str(), yaml.as_str());
-            let diff = diff(
-                Algorithm::Histogram,
-                &input,
-                UnifiedDiffBuilder::new(&input),
-            );
-            cache.entry(resource_name).or_insert(yaml);
-            yield Ok(diff);
+        while let Some(current) = stream.try_next().await? {
+            let mut diff : Option<String> = None;
+            cache.entry(current.resource_name()).and_modify(|previous| {
+                diff = Some(current.diff(previous));
+                *previous = current.clone();
+            }).or_insert(current);
+            if let Some(diff_value) = diff {
+                yield Ok(diff_value)
+            }
         }
     }
 }
 
 pub async fn watch_configmaps(client: Client) -> impl Stream<Item = Result<String, anyhow::Error>> {
-    let mut cache: HashMap<String, String> = HashMap::new();
+    let mut cache: HashMap<String, ConfigMap> = HashMap::new();
     stream! {
         let client_api: Api<ConfigMap> = Api::all(client);
         let (_, writer) = reflector::store::<ConfigMap>();
@@ -59,28 +147,21 @@ pub async fn watch_configmaps(client: Client) -> impl Stream<Item = Result<Strin
             .predicate_filter(predicates::resource_version);
         pin_mut!(stream);
 
-        while let Some(configmap) = stream.try_next().await? {
-            let resource_name = format!(
-                "namespace {} configmap {}",
-                configmap.namespace().unwrap_or("".into()),
-                configmap.name_any()
-            );
-            let previous_yaml: String = cache.get(&resource_name).unwrap_or(&"".into()).into();
-            let yaml = serde_yaml::to_string(&configmap).unwrap();
-            let input = InternedInput::new(previous_yaml.as_str(), yaml.as_str());
-            let diff = diff(
-                Algorithm::Histogram,
-                &input,
-                UnifiedDiffBuilder::new(&input),
-            );
-            cache.entry(resource_name).or_insert(yaml);
-            yield Ok(diff);
+        while let Some(current) = stream.try_next().await? {
+            let mut diff : Option<String> = None;
+            cache.entry(current.resource_name()).and_modify(|previous| {
+                diff = Some(current.diff(previous));
+                *previous = current.clone();
+            }).or_insert(current);
+            if let Some(diff_value) = diff {
+                yield Ok(diff_value)
+            }
         }
     }
 }
 
 pub async fn watch_secrets(client: Client) -> impl Stream<Item = Result<String, anyhow::Error>> {
-    let mut cache: HashMap<String, String> = HashMap::new();
+    let mut cache: HashMap<String, Secret> = HashMap::new();
     stream! {
         let client_api: Api<Secret> = Api::all(client);
         let (_, writer) = reflector::store::<Secret>();
@@ -91,28 +172,21 @@ pub async fn watch_secrets(client: Client) -> impl Stream<Item = Result<String, 
             .predicate_filter(predicates::resource_version);
         pin_mut!(stream);
 
-        while let Some(secret) = stream.try_next().await? {
-            let resource_name = format!(
-                "namespace {} secret {}",
-                secret.namespace().unwrap_or("".into()),
-                secret.name_any()
-            );
-            let previous_yaml: String = cache.get(&resource_name).unwrap_or(&"".into()).into();
-            let yaml = serde_yaml::to_string(&secret).unwrap();
-            let input = InternedInput::new(previous_yaml.as_str(), yaml.as_str());
-            let diff = diff(
-                Algorithm::Histogram,
-                &input,
-                UnifiedDiffBuilder::new(&input),
-            );
-            cache.entry(resource_name).or_insert(yaml);
-            yield Ok(diff);
+        while let Some(current) = stream.try_next().await? {
+            let mut diff : Option<String> = None;
+            cache.entry(current.resource_name()).and_modify(|previous| {
+                diff = Some(current.diff(previous));
+                *previous = current.clone();
+            }).or_insert(current);
+            if let Some(diff_value) = diff {
+                yield Ok(diff_value)
+            }
         }
     }
 }
 
 pub async fn watch_nodes(client: Client) -> impl Stream<Item = Result<String, anyhow::Error>> {
-    let mut cache: HashMap<String, String> = HashMap::new();
+    let mut cache: HashMap<String, Node> = HashMap::new();
     stream! {
         let client_api: Api<Node> = Api::all(client);
         let (_, writer) = reflector::store::<Node>();
@@ -123,21 +197,15 @@ pub async fn watch_nodes(client: Client) -> impl Stream<Item = Result<String, an
             .predicate_filter(predicates::resource_version);
         pin_mut!(stream);
 
-        while let Some(node) = stream.try_next().await? {
-            let resource_name = format!(
-                "node {}",
-                node.name_any()
-            );
-            let previous_yaml: String = cache.get(&resource_name).unwrap_or(&"".into()).into();
-            let yaml = serde_yaml::to_string(&node).unwrap();
-            let input = InternedInput::new(previous_yaml.as_str(), yaml.as_str());
-            let diff = diff(
-                Algorithm::Histogram,
-                &input,
-                UnifiedDiffBuilder::new(&input),
-            );
-            cache.entry(resource_name).or_insert(yaml);
-            yield Ok(diff);
+        while let Some(current) = stream.try_next().await? {
+            let mut diff : Option<String> = None;
+            cache.entry(current.resource_name()).and_modify(|previous| {
+                diff = Some(current.diff(previous));
+                *previous = current.clone();
+            }).or_insert(current);
+            if let Some(diff_value) = diff {
+                yield Ok(diff_value)
+            }
         }
     }
 }

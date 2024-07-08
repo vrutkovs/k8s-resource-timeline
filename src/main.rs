@@ -2,7 +2,6 @@ use futures_util::stream::StreamExt;
 use merge_streams::MergeStreams;
 
 use kube::Client;
-use tracing::*;
 
 mod watcher;
 
