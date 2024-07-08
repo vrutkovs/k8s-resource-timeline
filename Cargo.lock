@@ -675,6 +675,7 @@ dependencies = [
  "kube",
  "kube-derive",
  "kube-runtime",
+ "merge-streams",
  "serde_yaml",
  "tokio",
  "tracing",
@@ -820,6 +821,16 @@ name = "memchr"
 version = "2.7.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "78ca9ab1a0babb1e7d5695e3530886289c18cf2f87ec19a575a0abdce112e3a3"
+
+[[package]]
+name = "merge-streams"
+version = "0.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4f84f6452969abd246e7ac1fe4fe75906c76e8ec88d898df9aef37e0f3b6a7c2"
+dependencies = [
+ "futures-core",
+ "pin-project",
+]
 
 [[package]]
 name = "mime"
