@@ -1,0 +1,18 @@
+[package]
+name = "k8s-resource-timeline"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+kube          = { version = "0.88.1", features = ["runtime", "derive"] }
+k8s-openapi   = { version = "0.21.1", features = ["latest"] }
+kube-derive   = "0.88.1"
+kube-runtime  = { version = "0.88.1", features = ["unstable-runtime-predicates"]}
+
+futures = "0.3.30"
+tokio = { version="1.38.0", features = ["macros", "io-util", "rt", "rt-multi-thread", "fs"]}
+tracing = "0.1.40"
+serde_yaml = "*"
+anyhow = "*"
+tracing-subscriber = "*"
+imara-diff = "*"
