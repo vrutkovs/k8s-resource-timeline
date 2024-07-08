@@ -15,10 +15,21 @@ use kube::{
 use imara_diff::intern::InternedInput;
 use imara_diff::{diff, Algorithm, UnifiedDiffBuilder};
 
+pub struct ObjectDiff {
+    resource_name: String,
+    diff: String,
+}
+
+impl std::fmt::Display for ObjectDiff {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}: diff\n{}", self.resource_name, self.diff)
+    }
+}
+
 trait WatchDiff<T> {
     fn resource_name(&self) -> String;
     fn yaml(&self) -> String;
-    fn diff(&self, previous: &T) -> String;
+    fn diff(&self, previous: &T) -> ObjectDiff;
 }
 
 impl WatchDiff<Pod> for Pod {
@@ -32,15 +43,18 @@ impl WatchDiff<Pod> for Pod {
     fn yaml(&self) -> String {
         serde_yaml::to_string(&self).unwrap()
     }
-    fn diff(&self, previous: &Pod) -> String {
+    fn diff(&self, previous: &Pod) -> ObjectDiff {
         let src: String = previous.yaml();
         let dst: String = self.yaml();
         let input = InternedInput::new(src.as_str(), dst.as_str());
-        diff(
-            Algorithm::Histogram,
-            &input,
-            UnifiedDiffBuilder::new(&input),
-        )
+        ObjectDiff {
+            resource_name: self.resource_name(),
+            diff: diff(
+                Algorithm::Histogram,
+                &input,
+                UnifiedDiffBuilder::new(&input),
+            ),
+        }
     }
 }
 
@@ -55,15 +69,18 @@ impl WatchDiff<ConfigMap> for ConfigMap {
     fn yaml(&self) -> String {
         serde_yaml::to_string(&self).unwrap()
     }
-    fn diff(&self, previous: &ConfigMap) -> String {
+    fn diff(&self, previous: &ConfigMap) -> ObjectDiff {
         let src: String = previous.yaml();
         let dst: String = self.yaml();
         let input = InternedInput::new(src.as_str(), dst.as_str());
-        diff(
-            Algorithm::Histogram,
-            &input,
-            UnifiedDiffBuilder::new(&input),
-        )
+        ObjectDiff {
+            resource_name: self.resource_name(),
+            diff: diff(
+                Algorithm::Histogram,
+                &input,
+                UnifiedDiffBuilder::new(&input),
+            ),
+        }
     }
 }
 
@@ -78,15 +95,18 @@ impl WatchDiff<Secret> for Secret {
     fn yaml(&self) -> String {
         serde_yaml::to_string(&self).unwrap()
     }
-    fn diff(&self, previous: &Secret) -> String {
+    fn diff(&self, previous: &Secret) -> ObjectDiff {
         let src: String = previous.yaml();
         let dst: String = self.yaml();
         let input = InternedInput::new(src.as_str(), dst.as_str());
-        diff(
-            Algorithm::Histogram,
-            &input,
-            UnifiedDiffBuilder::new(&input),
-        )
+        ObjectDiff {
+            resource_name: self.resource_name(),
+            diff: diff(
+                Algorithm::Histogram,
+                &input,
+                UnifiedDiffBuilder::new(&input),
+            ),
+        }
     }
 }
 
@@ -97,19 +117,22 @@ impl WatchDiff<Node> for Node {
     fn yaml(&self) -> String {
         serde_yaml::to_string(&self).unwrap()
     }
-    fn diff(&self, previous: &Node) -> String {
+    fn diff(&self, previous: &Node) -> ObjectDiff {
         let src: String = previous.yaml();
         let dst: String = self.yaml();
         let input = InternedInput::new(src.as_str(), dst.as_str());
-        diff(
-            Algorithm::Histogram,
-            &input,
-            UnifiedDiffBuilder::new(&input),
-        )
+        ObjectDiff {
+            resource_name: self.resource_name(),
+            diff: diff(
+                Algorithm::Histogram,
+                &input,
+                UnifiedDiffBuilder::new(&input),
+            ),
+        }
     }
 }
 
-pub async fn watch_pods(client: Client) -> impl Stream<Item = Result<String, anyhow::Error>> {
+pub async fn watch_pods(client: Client) -> impl Stream<Item = Result<ObjectDiff, anyhow::Error>> {
     stream! {
         let mut cache: HashMap<String, Pod> = HashMap::new();
 
@@ -123,7 +146,7 @@ pub async fn watch_pods(client: Client) -> impl Stream<Item = Result<String, any
         pin_mut!(stream);
 
         while let Some(current) = stream.try_next().await? {
-            let mut diff : Option<String> = None;
+            let mut diff : Option<ObjectDiff> = None;
             cache.entry(current.resource_name()).and_modify(|previous| {
                 diff = Some(current.diff(previous));
                 *previous = current.clone();
@@ -135,7 +158,9 @@ pub async fn watch_pods(client: Client) -> impl Stream<Item = Result<String, any
     }
 }
 
-pub async fn watch_configmaps(client: Client) -> impl Stream<Item = Result<String, anyhow::Error>> {
+pub async fn watch_configmaps(
+    client: Client,
+) -> impl Stream<Item = Result<ObjectDiff, anyhow::Error>> {
     let mut cache: HashMap<String, ConfigMap> = HashMap::new();
     stream! {
         let client_api: Api<ConfigMap> = Api::all(client);
@@ -148,7 +173,7 @@ pub async fn watch_configmaps(client: Client) -> impl Stream<Item = Result<Strin
         pin_mut!(stream);
 
         while let Some(current) = stream.try_next().await? {
-            let mut diff : Option<String> = None;
+            let mut diff : Option<ObjectDiff> = None;
             cache.entry(current.resource_name()).and_modify(|previous| {
                 diff = Some(current.diff(previous));
                 *previous = current.clone();
@@ -160,7 +185,9 @@ pub async fn watch_configmaps(client: Client) -> impl Stream<Item = Result<Strin
     }
 }
 
-pub async fn watch_secrets(client: Client) -> impl Stream<Item = Result<String, anyhow::Error>> {
+pub async fn watch_secrets(
+    client: Client,
+) -> impl Stream<Item = Result<ObjectDiff, anyhow::Error>> {
     let mut cache: HashMap<String, Secret> = HashMap::new();
     stream! {
         let client_api: Api<Secret> = Api::all(client);
@@ -173,7 +200,7 @@ pub async fn watch_secrets(client: Client) -> impl Stream<Item = Result<String, 
         pin_mut!(stream);
 
         while let Some(current) = stream.try_next().await? {
-            let mut diff : Option<String> = None;
+            let mut diff : Option<ObjectDiff> = None;
             cache.entry(current.resource_name()).and_modify(|previous| {
                 diff = Some(current.diff(previous));
                 *previous = current.clone();
@@ -185,7 +212,7 @@ pub async fn watch_secrets(client: Client) -> impl Stream<Item = Result<String, 
     }
 }
 
-pub async fn watch_nodes(client: Client) -> impl Stream<Item = Result<String, anyhow::Error>> {
+pub async fn watch_nodes(client: Client) -> impl Stream<Item = Result<ObjectDiff, anyhow::Error>> {
     let mut cache: HashMap<String, Node> = HashMap::new();
     stream! {
         let client_api: Api<Node> = Api::all(client);
@@ -198,7 +225,7 @@ pub async fn watch_nodes(client: Client) -> impl Stream<Item = Result<String, an
         pin_mut!(stream);
 
         while let Some(current) = stream.try_next().await? {
-            let mut diff : Option<String> = None;
+            let mut diff : Option<ObjectDiff> = None;
             cache.entry(current.resource_name()).and_modify(|previous| {
                 diff = Some(current.diff(previous));
                 *previous = current.clone();
