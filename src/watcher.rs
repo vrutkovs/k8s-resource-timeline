@@ -15,20 +15,33 @@ use kube::{
 use imara_diff::intern::InternedInput;
 use imara_diff::{diff, Algorithm, UnifiedDiffBuilder};
 
+#[derive(Debug)]
+enum ChangeType {
+    Metadata,
+    Spec,
+    Status,
+}
+
 pub struct ObjectDiff {
     resource_name: String,
     diff: String,
+    change: ChangeType,
 }
 
 impl std::fmt::Display for ObjectDiff {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}: diff\n{}", self.resource_name, self.diff)
+        write!(
+            f,
+            "{}: change {:?} diff\n{}",
+            self.resource_name, self.change, self.diff
+        )
     }
 }
 
 trait WatchDiff<T> {
     fn resource_name(&self) -> String;
     fn yaml(&self) -> String;
+    fn change_type(&self, previous: &T) -> ChangeType;
     fn diff(&self, previous: &T) -> ObjectDiff;
 }
 
@@ -43,11 +56,21 @@ impl WatchDiff<Pod> for Pod {
     fn yaml(&self) -> String {
         serde_yaml::to_string(&self).unwrap()
     }
+    fn change_type(&self, previous: &Pod) -> ChangeType {
+        if self.spec != previous.spec {
+            return ChangeType::Spec;
+        }
+        if self.status != previous.status {
+            return ChangeType::Status;
+        }
+        ChangeType::Metadata
+    }
     fn diff(&self, previous: &Pod) -> ObjectDiff {
         let src: String = previous.yaml();
         let dst: String = self.yaml();
         let input = InternedInput::new(src.as_str(), dst.as_str());
         ObjectDiff {
+            change: self.change_type(previous),
             resource_name: self.resource_name(),
             diff: diff(
                 Algorithm::Histogram,
@@ -69,11 +92,18 @@ impl WatchDiff<ConfigMap> for ConfigMap {
     fn yaml(&self) -> String {
         serde_yaml::to_string(&self).unwrap()
     }
+    fn change_type(&self, previous: &ConfigMap) -> ChangeType {
+        if self.data != previous.data {
+            return ChangeType::Spec;
+        }
+        ChangeType::Metadata
+    }
     fn diff(&self, previous: &ConfigMap) -> ObjectDiff {
         let src: String = previous.yaml();
         let dst: String = self.yaml();
         let input = InternedInput::new(src.as_str(), dst.as_str());
         ObjectDiff {
+            change: self.change_type(previous),
             resource_name: self.resource_name(),
             diff: diff(
                 Algorithm::Histogram,
@@ -95,11 +125,18 @@ impl WatchDiff<Secret> for Secret {
     fn yaml(&self) -> String {
         serde_yaml::to_string(&self).unwrap()
     }
+    fn change_type(&self, previous: &Secret) -> ChangeType {
+        if self.data != previous.data {
+            return ChangeType::Spec;
+        }
+        ChangeType::Metadata
+    }
     fn diff(&self, previous: &Secret) -> ObjectDiff {
         let src: String = previous.yaml();
         let dst: String = self.yaml();
         let input = InternedInput::new(src.as_str(), dst.as_str());
         ObjectDiff {
+            change: self.change_type(previous),
             resource_name: self.resource_name(),
             diff: diff(
                 Algorithm::Histogram,
@@ -117,11 +154,21 @@ impl WatchDiff<Node> for Node {
     fn yaml(&self) -> String {
         serde_yaml::to_string(&self).unwrap()
     }
+    fn change_type(&self, previous: &Node) -> ChangeType {
+        if self.spec != previous.spec {
+            return ChangeType::Spec;
+        }
+        if self.status != previous.status {
+            return ChangeType::Status;
+        }
+        ChangeType::Metadata
+    }
     fn diff(&self, previous: &Node) -> ObjectDiff {
         let src: String = previous.yaml();
         let dst: String = self.yaml();
         let input = InternedInput::new(src.as_str(), dst.as_str());
         ObjectDiff {
+            change: self.change_type(previous),
             resource_name: self.resource_name(),
             diff: diff(
                 Algorithm::Histogram,
