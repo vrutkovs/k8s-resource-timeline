@@ -150,7 +150,8 @@ where
         + std::fmt::Debug
         + WatchDiff<T>
         + ExtraInfo<T>
-        + for<'de> k8s_openapi::serde::Deserialize<'de>,
+        + for<'de> k8s_openapi::serde::Deserialize<'de>
+        + 'static,
     <T as kube::Resource>::DynamicType:
         std::clone::Clone + std::default::Default + std::cmp::Eq + std::hash::Hash,
 {
