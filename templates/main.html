@@ -63,7 +63,6 @@
 
 <script>
     const myChart = TimelinesChart();
-
     var eventIntervals = [];
 
     // Fetch events from server
@@ -77,7 +76,7 @@
             firstTimeHuh = false;
             renderChart(null);
         } else {
-            myChart.refresh();
+            myChart.data(buildTimelineGroups(null)).refresh();
         }
         
     };
@@ -272,9 +271,7 @@
         return eventInterval.locator.type === "Node" && eventInterval.change.type == "Status";
     }
 
-    function renderChart(regex) {
-        var loc = window.location.href;
-
+    function buildTimelineGroups(regex) {
         var timelineGroups = []
         timelineGroups.push({group: "pod", data: []})
         createTimelineData("Metadata", timelineGroups[timelineGroups.length - 1].data, eventIntervals, podMetadataChange, regex)
@@ -293,6 +290,11 @@
         createTimelineData("Metadata", timelineGroups[timelineGroups.length - 1].data, eventIntervals, nodeMetadataChange, regex)
         createTimelineData("Spec", timelineGroups[timelineGroups.length - 1].data, eventIntervals, nodeSpecChange, regex)
         createTimelineData("Status", timelineGroups[timelineGroups.length - 1].data, eventIntervals, nodeStatusChange, regex)
+        return timelineGroups
+    }
+
+    function renderChart(regex) {
+        var loc = window.location.href;
 
         var segmentFunc = function (segment) {
             var targetElement = document.getElementById('diff');
@@ -309,7 +311,7 @@
 
         const el = document.querySelector('#chart');
         myChart.
-        data(timelineGroups).
+        data(buildTimelineGroups()).
         useUtc(true).
         zQualitative(true).
         enableAnimations(false).
