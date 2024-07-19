@@ -24,6 +24,13 @@
     <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/js/bootstrap.min.js"
             integrity="sha384-JZR6Spejh4U02d8jOt6vLEHfe/JQGiRRSQQxSfFWpi1MquVdAyjUar5+76PVCmYl"
             crossorigin="anonymous"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.7.1/styles/github.min.css" />
+    <link
+      rel="stylesheet"
+      type="text/css"
+      href="https://cdn.jsdelivr.net/npm/diff2html/bundles/css/diff2html.min.css"
+    />
+    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/diff2html/bundles/js/diff2html-ui.min.js"></script>
 </head>
 <body>
 
@@ -144,7 +151,7 @@
 
     function segmentTooltipFunc(d) {
         return '<span style="max-inline-size: min-content; display: inline-block;">'
-        + '<pre style="text-align: left; color: white">' + d.labelVal + '</pre><br/>'
+        + '<strong>' + d.label + '</strong><br/>'
         + '<strong>From: </strong>' + new Date(d.timeRange[0]).toUTCString() + '<br>'
         + '<strong>To: </strong>' + new Date(d.timeRange[1]).toUTCString() + '</span>';
     }
@@ -272,7 +279,16 @@
         createTimelineData("Status", timelineGroups[timelineGroups.length - 1].data, eventIntervals, nodeStatusChange, regex)
 
         var segmentFunc = function (segment) {
-            $('#diff').text(segment.label + ' at ' + segment.timeRange[0] + '\n' + segment.labelVal);
+            var targetElement = document.getElementById('diff');
+            var configuration = {
+                drawFileList: false,
+                matching: 'lines',
+                outputFormat: 'unified',
+            };
+            var diffString = "--- " + segment.label + "\n" + "+++ " + segment.label + "\n" + segment.labelVal;
+            var diff2htmlUi = new Diff2HtmlUI(targetElement, diffString, configuration);
+            diff2htmlUi.draw();
+            diff2htmlUi.highlightCode();
         }
 
         const el = document.querySelector('#chart');
@@ -297,9 +313,6 @@
 
     renderChart(null)
 </script>
-<div>
-    <pre id="diff">
-    </pre>
-</div>
+<div id="diff"></div>
 </body>
 </html>
