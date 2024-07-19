@@ -24,26 +24,66 @@ pub enum ChangeType {
     Status,
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+pub enum LocatorType {
+    Pod,
+    Secret,
+    ConfigMap,
+    Node,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct Locator {
+    #[serde(rename = "type")]
+    _type: LocatorType,
+    keys: LocatorKeys,
+}
+
+impl std::fmt::Display for Locator {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "resource {:?} name {} namespace {:?}",
+            self._type, self.keys.name, self.keys.namespace
+        )
+    }
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct Change {
+    #[serde(rename = "type")]
+    _type: ChangeType,
+    diff: String,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct LocatorKeys {
+    namespace: Option<String>,
+    name: String,
+    uid: String,
+}
+
 #[derive(Serialize, Deserialize)]
 pub struct ObjectDiff {
-    resource_name: String,
-    diff: String,
-    change: ChangeType,
-    timestamp: DateTime<Utc>,
+    locator: Locator,
+    change: Change,
+    from: DateTime<Utc>,
+    to: DateTime<Utc>,
 }
 
 impl std::fmt::Display for ObjectDiff {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "{}: resource {} change {:?} diff\n{}",
-            self.timestamp, self.resource_name, self.change, self.diff
+            "{}: resource {} type {:?} diff\n{}",
+            self.from, self.locator, self.change._type, self.change.diff
         )
     }
 }
 
 pub trait ExtraInfo<T> {
-    fn resource_name(&self) -> String;
+    // TODO: make another trait for Resource to get locator_keys
+    fn locator(&self) -> Locator;
     fn change_type(&self, previous: &T) -> ChangeType;
 }
 
@@ -59,31 +99,28 @@ where
     fn yaml(&self) -> String {
         serde_yaml::to_string(&self).unwrap()
     }
+
     fn diff(&self, previous: &T) -> ObjectDiff {
         let src: String = previous.yaml();
         let dst: String = self.yaml();
         let input = InternedInput::new(src.as_str(), dst.as_str());
         ObjectDiff {
-            timestamp: Utc::now(),
-            change: self.change_type(previous),
-            resource_name: self.resource_name(),
-            diff: diff(
-                Algorithm::Histogram,
-                &input,
-                UnifiedDiffBuilder::new(&input),
-            ),
+            from: Utc::now(), // TODO: uuugh
+            to: Utc::now(),
+            locator: self.locator(),
+            change: Change {
+                _type: self.change_type(previous),
+                diff: diff(
+                    Algorithm::Histogram,
+                    &input,
+                    UnifiedDiffBuilder::new(&input),
+                ),
+            },
         }
     }
 }
 
 impl ExtraInfo<Pod> for Pod {
-    fn resource_name(&self) -> String {
-        format!(
-            "namespace {} pod {}",
-            self.namespace().unwrap_or("".into()),
-            self.name_any()
-        )
-    }
     fn change_type(&self, previous: &Pod) -> ChangeType {
         if self.spec != previous.spec {
             return ChangeType::Spec;
@@ -93,15 +130,28 @@ impl ExtraInfo<Pod> for Pod {
         }
         ChangeType::Metadata
     }
+    fn locator(&self) -> Locator {
+        Locator {
+            _type: LocatorType::Pod,
+            keys: LocatorKeys {
+                namespace: self.namespace(),
+                name: self.name_any(),
+                uid: self.uid().expect("pods have uid"),
+            },
+        }
+    }
 }
 
 impl ExtraInfo<ConfigMap> for ConfigMap {
-    fn resource_name(&self) -> String {
-        format!(
-            "namespace {} configmap {}",
-            self.namespace().unwrap_or("".into()),
-            self.name_any()
-        )
+    fn locator(&self) -> Locator {
+        Locator {
+            _type: LocatorType::ConfigMap,
+            keys: LocatorKeys {
+                namespace: self.namespace(),
+                name: self.name_any(),
+                uid: self.uid().expect("configmaps have uid"),
+            },
+        }
     }
     fn change_type(&self, previous: &ConfigMap) -> ChangeType {
         if self.data != previous.data {
@@ -112,12 +162,15 @@ impl ExtraInfo<ConfigMap> for ConfigMap {
 }
 
 impl ExtraInfo<Secret> for Secret {
-    fn resource_name(&self) -> String {
-        format!(
-            "namespace {} secret {}",
-            self.namespace().unwrap_or("".into()),
-            self.name_any()
-        )
+    fn locator(&self) -> Locator {
+        Locator {
+            _type: LocatorType::Secret,
+            keys: LocatorKeys {
+                namespace: self.namespace(),
+                name: self.name_any(),
+                uid: self.uid().expect("secrets have uid"),
+            },
+        }
     }
     fn change_type(&self, previous: &Secret) -> ChangeType {
         if self.data != previous.data {
@@ -128,9 +181,6 @@ impl ExtraInfo<Secret> for Secret {
 }
 
 impl ExtraInfo<Node> for Node {
-    fn resource_name(&self) -> String {
-        format!("node {}", self.name_any())
-    }
     fn change_type(&self, previous: &Node) -> ChangeType {
         if self.spec != previous.spec {
             return ChangeType::Spec;
@@ -139,6 +189,16 @@ impl ExtraInfo<Node> for Node {
             return ChangeType::Status;
         }
         ChangeType::Metadata
+    }
+    fn locator(&self) -> Locator {
+        Locator {
+            _type: LocatorType::Node,
+            keys: LocatorKeys {
+                namespace: self.namespace(),
+                name: self.name_any(),
+                uid: self.uid().expect("configmaps have uid"),
+            },
+        }
     }
 }
 
@@ -197,7 +257,7 @@ where
 
         while let Some(current) = stream.try_next().await? {
             let mut diff : Option<ObjectDiff> = None;
-            cache.entry(current.resource_name()).and_modify(|previous| {
+            cache.entry(current.locator().to_string()).and_modify(|previous| {
                 diff = Some(current.diff(previous));
                 *previous = current.clone();
             }).or_insert(current);
