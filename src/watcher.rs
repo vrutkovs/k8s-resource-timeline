@@ -81,21 +81,27 @@ impl std::fmt::Display for ObjectDiff {
     }
 }
 
-pub trait ExtraInfo<T> {
-    // TODO: make another trait for Resource to get locator_keys
-    fn locator(&self) -> Locator;
-    fn change_type(&self, previous: &T) -> ChangeType;
-}
-
 pub trait WatchDiff<T> {
     fn yaml(&self) -> String;
     fn diff(&self, previous: &T) -> ObjectDiff;
+    fn locator(&self) -> Locator;
 }
 
 impl<T> WatchDiff<T> for T
 where
     T: kube::Resource + k8s_openapi::serde::Serialize + ExtraInfo<T>,
 {
+    fn locator(&self) -> Locator {
+        Locator {
+            _type: LocatorType::Pod,
+            keys: LocatorKeys {
+                namespace: self.namespace(),
+                name: self.name_any(),
+                uid: self.uid().expect("resources have uid"),
+            },
+        }
+    }
+
     fn yaml(&self) -> String {
         serde_yaml::to_string(&self).unwrap()
     }
@@ -120,6 +126,11 @@ where
     }
 }
 
+pub trait ExtraInfo<T> {
+    // TODO: make another trait for Resource to get locator_keys
+    fn change_type(&self, previous: &T) -> ChangeType;
+}
+
 impl ExtraInfo<Pod> for Pod {
     fn change_type(&self, previous: &Pod) -> ChangeType {
         if self.spec != previous.spec {
@@ -130,29 +141,9 @@ impl ExtraInfo<Pod> for Pod {
         }
         ChangeType::Metadata
     }
-    fn locator(&self) -> Locator {
-        Locator {
-            _type: LocatorType::Pod,
-            keys: LocatorKeys {
-                namespace: self.namespace(),
-                name: self.name_any(),
-                uid: self.uid().expect("pods have uid"),
-            },
-        }
-    }
 }
 
 impl ExtraInfo<ConfigMap> for ConfigMap {
-    fn locator(&self) -> Locator {
-        Locator {
-            _type: LocatorType::ConfigMap,
-            keys: LocatorKeys {
-                namespace: self.namespace(),
-                name: self.name_any(),
-                uid: self.uid().expect("configmaps have uid"),
-            },
-        }
-    }
     fn change_type(&self, previous: &ConfigMap) -> ChangeType {
         if self.data != previous.data {
             return ChangeType::Spec;
@@ -162,16 +153,6 @@ impl ExtraInfo<ConfigMap> for ConfigMap {
 }
 
 impl ExtraInfo<Secret> for Secret {
-    fn locator(&self) -> Locator {
-        Locator {
-            _type: LocatorType::Secret,
-            keys: LocatorKeys {
-                namespace: self.namespace(),
-                name: self.name_any(),
-                uid: self.uid().expect("secrets have uid"),
-            },
-        }
-    }
     fn change_type(&self, previous: &Secret) -> ChangeType {
         if self.data != previous.data {
             return ChangeType::Spec;
@@ -189,16 +170,6 @@ impl ExtraInfo<Node> for Node {
             return ChangeType::Status;
         }
         ChangeType::Metadata
-    }
-    fn locator(&self) -> Locator {
-        Locator {
-            _type: LocatorType::Node,
-            keys: LocatorKeys {
-                namespace: self.namespace(),
-                name: self.name_any(),
-                uid: self.uid().expect("configmaps have uid"),
-            },
-        }
     }
 }
 
