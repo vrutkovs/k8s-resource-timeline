@@ -190,6 +190,7 @@
             }
             ranges.push({
                 timeRange: [startDate, endDate],
+                label: label,
                 val: val,
                 labelVal: defaultToolTip(item)
             });
@@ -203,7 +204,7 @@
                         (prev, curr) => prev + (curr.timeRange[1].getTime() - curr.timeRange[0].getTime())/1000,
                         0);
 
-                    timelineData.push({label: label + sub + " " + getDurationString(totalDurationSeconds), data: data})
+                    timelineData.push({label: label + sub, data: data})
                 }
             }
         }
@@ -271,7 +272,7 @@
         createTimelineData("Status", timelineGroups[timelineGroups.length - 1].data, eventIntervals, nodeStatusChange, regex)
 
         var segmentFunc = function (segment) {
-            navigator.clipboard.writeText(segment.labelVal);
+            $('#diff').text(segment.label + ' at ' + segment.timeRange[0] + '\n' + segment.labelVal);
         }
 
         const el = document.querySelector('#chart');
@@ -296,5 +297,9 @@
 
     renderChart(null)
 </script>
+<div>
+    <pre id="diff">
+    </pre>
+</div>
 </body>
 </html>
