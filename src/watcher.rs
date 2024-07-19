@@ -17,14 +17,14 @@ use kube::{
 use imara_diff::intern::InternedInput;
 use imara_diff::{diff, Algorithm, UnifiedDiffBuilder};
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum ChangeType {
     Metadata,
     Spec,
     Status,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum LocatorType {
     Pod,
     Secret,
@@ -32,7 +32,7 @@ pub enum LocatorType {
     Node,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct Locator {
     #[serde(rename = "type")]
     _type: LocatorType,
@@ -49,21 +49,21 @@ impl std::fmt::Display for Locator {
     }
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct Change {
     #[serde(rename = "type")]
     _type: ChangeType,
     diff: String,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct LocatorKeys {
     namespace: Option<String>,
     name: String,
     uid: String,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct ObjectDiff {
     locator: Locator,
     change: Change,

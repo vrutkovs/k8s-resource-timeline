@@ -1,6 +1,6 @@
 use axum::{routing::get, Router};
-use tower_http::services::ServeFile;
 
+mod routes;
 mod stream;
 mod watcher;
 
@@ -8,9 +8,7 @@ mod watcher;
 async fn main() {
     tracing_subscriber::fmt::init();
 
-    let app = Router::new()
-        .route_service("/", ServeFile::new("assets/main.html"))
-        .route("/watch", get(stream::watch));
+    let app = Router::new().route("/", get(routes::timeline));
 
     let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
     axum::serve(listener, app).await.unwrap();
