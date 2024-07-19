@@ -1,4 +1,5 @@
 use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 use async_stream::stream;
@@ -16,13 +17,14 @@ use kube::{
 use imara_diff::intern::InternedInput;
 use imara_diff::{diff, Algorithm, UnifiedDiffBuilder};
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub enum ChangeType {
     Metadata,
     Spec,
     Status,
 }
 
+#[derive(Serialize, Deserialize)]
 pub struct ObjectDiff {
     resource_name: String,
     diff: String,
@@ -140,9 +142,35 @@ impl ExtraInfo<Node> for Node {
     }
 }
 
+#[derive(Debug)]
+pub struct StreamError {
+    pub message: String,
+}
+impl std::error::Error for StreamError {}
+
+impl std::fmt::Display for StreamError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.message)
+    }
+}
+
+impl Into<axum::Error> for StreamError {
+    fn into(self) -> axum::Error {
+        axum::Error::new(self.message)
+    }
+}
+
+impl From<watcher::Error> for StreamError {
+    fn from(e: watcher::Error) -> Self {
+        StreamError {
+            message: e.to_string(),
+        }
+    }
+}
+
 pub async fn watch_resource<T>(
     client: Client,
-) -> impl Stream<Item = Result<ObjectDiff, anyhow::Error>>
+) -> impl Stream<Item = Result<ObjectDiff, StreamError>>
 where
     T: kube::Resource
         + std::clone::Clone

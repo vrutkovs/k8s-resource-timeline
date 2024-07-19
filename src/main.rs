@@ -1,27 +1,17 @@
-use futures_util::stream::StreamExt;
-use merge_streams::MergeStreams;
+use axum::{routing::get, Router};
+use tower_http::services::ServeFile;
 
-use k8s_openapi::api::core::v1::{ConfigMap, Node, Pod, Secret};
-use kube::Client;
-
+mod stream;
 mod watcher;
 
 #[tokio::main]
-async fn main() -> anyhow::Result<()> {
+async fn main() {
     tracing_subscriber::fmt::init();
-    let client = Client::try_default().await?;
 
-    let pod_stream = watcher::watch_resource::<Pod>(client.clone()).await;
-    let cm_stream = watcher::watch_resource::<ConfigMap>(client.clone()).await;
-    let secret_stream = watcher::watch_resource::<Secret>(client.clone()).await;
-    let node_stream = watcher::watch_resource::<Node>(client.clone()).await;
-    let mut s = (pod_stream, cm_stream, secret_stream, node_stream).merge();
+    let app = Router::new()
+        .route_service("/", ServeFile::new("assets/main.html"))
+        .route("/watch", get(stream::watch));
 
-    while let Some(maybe_value) = s.next().await {
-        if let Ok(value) = maybe_value {
-            println!("{}", value);
-        }
-    }
-
-    Ok(())
+    let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
+    axum::serve(listener, app).await.unwrap();
 }
