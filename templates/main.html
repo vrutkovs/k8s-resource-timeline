@@ -62,10 +62,26 @@
 </div>
 
 <script>
-    var eventIntervals = {{ intervals }}
-</script>
+    const myChart = TimelinesChart();
 
-<script>
+    var eventIntervals = [];
+
+    // Fetch events from server
+    const evtSource = new EventSource("/events");
+
+    var firstTimeHuh = true;
+    evtSource.onmessage = function(e) {
+        eventIntervals.push(JSON.parse(e.data));
+        console.log(JSON.parse(e.data));
+        if (firstTimeHuh) {
+            firstTimeHuh = false;
+            renderChart(null);
+        } else {
+            myChart.refresh();
+        }
+        
+    };
+
     // Re-render the chart with input as a regexp. Timeout for event debouncing.
     $('#filterInput').on('input', (e) => {
         var $this = $(this);
@@ -292,7 +308,6 @@
         }
 
         const el = document.querySelector('#chart');
-        const myChart = TimelinesChart();
         myChart.
         data(timelineGroups).
         useUtc(true).
@@ -311,7 +326,7 @@
         setTimeout(() => { if (myChart.width() < 3100) { myChart.width(3100) }}, 1)
     }
 
-    renderChart(null)
+    // renderChart(null)
 </script>
 <div id="diff"></div>
 </body>

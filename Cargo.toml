@@ -30,6 +30,7 @@ tracing-subscriber = "*"
 imara-diff = "*"
 async-stream = "*"
 merge-streams = "*"
+stream_throttle = "*"
 chrono = "*"
 
 axum = "*"
