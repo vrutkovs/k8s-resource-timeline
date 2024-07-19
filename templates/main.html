@@ -76,23 +76,6 @@
         }
     });
 
-    function isPod(eventInterval) {
-        return eventInterval.locator.type === "Pod";
-    }
-
-    function isSecret(eventInterval) {
-        return eventInterval.locator.type === "Secret";
-    }
-
-    function isConfigMap(eventInterval) {
-        return eventInterval.locator.type === "ConfigMap";
-    }
-
-    function isNode(eventInterval) {
-        return eventInterval.locator.type === "Node";
-    }
-
-
     function getDurationString(durationSeconds) {
         const seconds = durationSeconds % 60;
         const minutes = Math.floor(durationSeconds/60);
@@ -111,9 +94,6 @@
         return item.change.diff
     }
 
-
-    // Used for the actual locators displayed on the right hand side of the chart. Based on the origin go code that does
-    // similar for whenever we serialize a locator to display.
     function buildLocatorDisplayString(i) {
         let keys = Object.keys(i.keys);
         keys = sortKeys(keys);
@@ -128,7 +108,7 @@
 
     function sortKeys(keys) {
         // Ensure these keys appear in this order. Other keys can be mixed in and will appear at the end in alphabetical order.
-        const orderedKeys = ["namespace", "node", "pod", "uid", "server", "container", "shutdown", "row"];
+        const orderedKeys = ["namespace", "name", "uid"];
 
         // Create a map to store the indices of keys in the orderedKeys array.
         // This will allow us to efficiently check if a key is in orderedKeys and find its position.
@@ -229,21 +209,66 @@
         }
     }
 
+    function podMetadataChange(eventInterval) {
+        return eventInterval.locator.type === "Pod" && eventInterval.change.type == "Metadata";
+    }
+
+    function podSpecChange(eventInterval) {
+        return eventInterval.locator.type === "Pod" && eventInterval.change.type == "Spec";
+    }
+
+    function podStatusChange(eventInterval) {
+        return eventInterval.locator.type === "Pod" && eventInterval.change.type == "Status";
+    }
+
+    function secretMetadataChange(eventInterval) {
+        return eventInterval.locator.type === "Secret" && eventInterval.change.type == "Metadata";
+    }
+    function secretSpecChange(eventInterval) {
+        return eventInterval.locator.type === "Secret" && eventInterval.change.type == "Spec";
+    }
+
+    function configMapMetadataChange(eventInterval) {
+        return eventInterval.locator.type === "ConfigMap" && eventInterval.change.type == "Metadata";
+    }
+
+    function configMapSpecChange(eventInterval) {
+        return eventInterval.locator.type === "ConfigMap" && eventInterval.change.type == "Spec";
+    }
+
+    function nodeMetadataChange(eventInterval) {
+        return eventInterval.locator.type === "Node" && eventInterval.change.type == "Metadata";
+    }
+
+    function nodeSpecChange(eventInterval) {
+        return eventInterval.locator.type === "Node" && eventInterval.change.type == "Spec";
+    }
+
+    function nodeStatusChange(eventInterval) {
+        return eventInterval.locator.type === "Node" && eventInterval.change.type == "Status";
+    }
+
     function renderChart(regex) {
         var loc = window.location.href;
 
         var timelineGroups = []
         timelineGroups.push({group: "pod", data: []})
-        createTimelineData("PodState", timelineGroups[timelineGroups.length - 1].data, eventIntervals, isPod, regex)
+        createTimelineData("Metadata", timelineGroups[timelineGroups.length - 1].data, eventIntervals, podMetadataChange, regex)
+        createTimelineData("Spec", timelineGroups[timelineGroups.length - 1].data, eventIntervals, podSpecChange, regex)
+        createTimelineData("Status", timelineGroups[timelineGroups.length - 1].data, eventIntervals, podStatusChange, regex)
 
         timelineGroups.push({group: "secret", data: []})
-        createTimelineData("Secret", timelineGroups[timelineGroups.length - 1].data, eventIntervals, isSecret, regex)
+        createTimelineData("Metadata", timelineGroups[timelineGroups.length - 1].data, eventIntervals, secretMetadataChange, regex)
+        createTimelineData("Spec", timelineGroups[timelineGroups.length - 1].data, eventIntervals, secretSpecChange, regex)
 
         timelineGroups.push({group: "configmap", data: []})
-        createTimelineData("ConfigMap", timelineGroups[timelineGroups.length - 1].data, eventIntervals, isConfigMap, regex)
+        createTimelineData("Metadata", timelineGroups[timelineGroups.length - 1].data, eventIntervals, configMapMetadataChange, regex)
+        createTimelineData("Spec", timelineGroups[timelineGroups.length - 1].data, eventIntervals, configMapSpecChange, regex)
 
         timelineGroups.push({group: "node", data: []})
-        createTimelineData("Node", timelineGroups[timelineGroups.length - 1].data, eventIntervals, isNode, regex)
+        createTimelineData("Metadata", timelineGroups[timelineGroups.length - 1].data, eventIntervals, nodeMetadataChange, regex)
+        createTimelineData("Spec", timelineGroups[timelineGroups.length - 1].data, eventIntervals, nodeSpecChange, regex)
+        createTimelineData("Status", timelineGroups[timelineGroups.length - 1].data, eventIntervals, nodeStatusChange, regex)
 
         var segmentFunc = function (segment) {
             navigator.clipboard.writeText(segment.labelVal);
