@@ -1,4 +1,4 @@
-use futures_util::{Stream, StreamExt};
+use futures_util::{Stream, StreamExt, TryStreamExt};
 use std::convert::Infallible;
 
 use askama::Template;
@@ -6,7 +6,7 @@ use axum::http::StatusCode;
 use axum::response::sse::{Event, KeepAlive, Sse};
 use axum::response::{Html, IntoResponse};
 
-use crate::watcher;
+use crate::watcher::{self, StreamError};
 
 use k8s_openapi::api::core::v1::{ConfigMap, Node, Pod, Secret};
 use kube::Client;
@@ -34,10 +34,19 @@ pub async fn events() -> Sse<impl Stream<Item = Result<Event, Infallible>>> {
     let secret_stream = watcher::watch_resource::<Secret>(client.clone()).await;
     let node_stream = watcher::watch_resource::<Node>(client.clone()).await;
     let s = (pod_stream, cm_stream, secret_stream, node_stream).merge();
-
     let sse_events = s
-        .filter_map(|e| async move { Some(serde_json::to_string(&e).expect("can be serialized")) })
-        .map(|e| Event::default().data(e))
+        .try_filter_map(|diff| async move {
+            match serde_json::to_string(&diff) {
+                Ok(r) => Ok(Some(r)),
+                Err(e) => Err(StreamError {
+                    message: e.to_string(),
+                }),
+            }
+        })
+        .map(|e| match e {
+            Ok(x) => Event::default().data(x),
+            Err(_) => Event::default(),
+        })
         .map(Ok);
 
     Sse::new(sse_events).keep_alive(KeepAlive::default())
