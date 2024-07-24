@@ -1,3 +1,4 @@
+use anyhow::anyhow;
 use futures_util::{Stream, StreamExt};
 use std::convert::Infallible;
 
@@ -36,10 +37,8 @@ pub async fn events() -> Sse<impl Stream<Item = Result<Event, Infallible>>> {
     let s = (pod_stream, cm_stream, secret_stream, node_stream).merge();
 
     let sse_events = s
-        .map(|e| {
-            Event::default()
-                .data(serde_json::to_string(&e.expect("result")).expect("can serialize"))
-        })
+        .filter_map(|e| async move { Some(serde_json::to_string(&e).expect("can be serialized")) })
+        .map(|e| Event::default().data(e))
         .map(Ok);
 
     Sse::new(sse_events).keep_alive(KeepAlive::default())

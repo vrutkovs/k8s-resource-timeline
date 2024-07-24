@@ -173,7 +173,7 @@ impl ExtraInfo<Node> for Node {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, serde::Serialize)]
 pub struct StreamError {
     pub message: String,
 }
