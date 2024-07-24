@@ -1,7 +1,6 @@
 use axum::{routing::get, Router};
 
 mod routes;
-mod stream;
 mod watcher;
 
 #[tokio::main]
