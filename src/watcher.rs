@@ -93,7 +93,7 @@ where
 {
     fn locator(&self) -> Locator {
         Locator {
-            _type: LocatorType::Pod,
+            _type: self.get_type(),
             keys: LocatorKeys {
                 namespace: self.namespace(),
                 name: self.name_any(),
@@ -129,6 +129,7 @@ where
 pub trait ExtraInfo<T> {
     // TODO: make another trait for Resource to get locator_keys
     fn change_type(&self, previous: &T) -> ChangeType;
+    fn get_type(&self) -> LocatorType;
 }
 
 impl ExtraInfo<Pod> for Pod {
@@ -141,6 +142,9 @@ impl ExtraInfo<Pod> for Pod {
         }
         ChangeType::Metadata
     }
+    fn get_type(&self) -> LocatorType {
+        LocatorType::Pod
+    }
 }
 
 impl ExtraInfo<ConfigMap> for ConfigMap {
@@ -150,6 +154,9 @@ impl ExtraInfo<ConfigMap> for ConfigMap {
         }
         ChangeType::Metadata
     }
+    fn get_type(&self) -> LocatorType {
+        LocatorType::ConfigMap
+    }
 }
 
 impl ExtraInfo<Secret> for Secret {
@@ -158,6 +165,9 @@ impl ExtraInfo<Secret> for Secret {
             return ChangeType::Spec;
         }
         ChangeType::Metadata
+    }
+    fn get_type(&self) -> LocatorType {
+        LocatorType::Secret
     }
 }
 
@@ -170,6 +180,9 @@ impl ExtraInfo<Node> for Node {
             return ChangeType::Status;
         }
         ChangeType::Metadata
+    }
+    fn get_type(&self) -> LocatorType {
+        LocatorType::Node
     }
 }
 
